@@ -35,10 +35,9 @@ class CalculadoraRobux(discord.ui.Modal, title="🧮 Calculadora de Robux"):
         # ==========================
         # TABELA DE PREÇOS
         # ==========================
-        valor = quantidade * 0.03
-
-        if quantidade >= 1000:
-            valor = (quantidade / 1000) * 27
+        milhares = quantidade // 1000
+        restante = quantidade % 1000
+        valor = (milhares * 27) + (restante * 0.03)
 
         vip = interaction.user.get_role(VIP_ROLE)
         pode_desconto = False
