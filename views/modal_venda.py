@@ -3,7 +3,7 @@ from datetime import datetime
 
 import discord
 
-from config import CLIENTE_ROLE, FUTURO_CLIENTE_ROLE
+from config import FUTURO_CLIENTE_ROLE, RANK_ROLES
 
 from database.database import (
     get_db,
@@ -119,21 +119,56 @@ class RegistrarVenda(discord.ui.Modal, title="💰 Registrar Venda"):
             cliente = interaction.guild.get_member(cliente_id)
             usos_vip = await obter_usos(cliente_id)
 
+            # Busca o total acumulado após registrar esta compra.
+            cursor = await db.execute(
+                "SELECT robux_comprados FROM clientes WHERE user_id = ?",
+                (cliente_id,)
+            )
+            resultado_cliente = await cursor.fetchone()
+            total_robux = int(resultado_cliente[0] or 0) if resultado_cliente else 0
+
             if cliente:
+                # Remove o cargo de futuro cliente, quando configurado.
+                cargo_futuro = interaction.guild.get_role(FUTURO_CLIENTE_ROLE)
+                if cargo_futuro and cargo_futuro in cliente.roles:
+                    await cliente.remove_roles(
+                        cargo_futuro,
+                        reason="Cliente realizou uma compra"
+                    )
 
-                cargo_futuro = interaction.guild.get_role(
-                    FUTURO_CLIENTE_ROLE
-                )
+                # Descobre o maior cargo alcançado pelo total acumulado.
+                cargo_rank_escolhido = None
+                for minimo_robux, cargo_id in RANK_ROLES:
+                    if total_robux >= minimo_robux:
+                        cargo_rank_escolhido = interaction.guild.get_role(cargo_id)
+                        break
 
-                cargo_cliente = interaction.guild.get_role(
-                    CLIENTE_ROLE
-                )
+                # Remove todos os cargos de progressão, exceto o correto.
+                cargos_rank = [
+                    interaction.guild.get_role(cargo_id)
+                    for _, cargo_id in RANK_ROLES
+                ]
+                cargos_para_remover = [
+                    cargo for cargo in cargos_rank
+                    if cargo
+                    and cargo in cliente.roles
+                    and cargo != cargo_rank_escolhido
+                ]
 
-                if cargo_futuro:
-                    await cliente.remove_roles(cargo_futuro)
+                if cargos_para_remover:
+                    await cliente.remove_roles(
+                        *cargos_para_remover,
+                        reason=f"Atualização automática de rank: {total_robux} Robux"
+                    )
 
-                if cargo_cliente:
-                    await cliente.add_roles(cargo_cliente)
+                if (
+                    cargo_rank_escolhido
+                    and cargo_rank_escolhido not in cliente.roles
+                ):
+                    await cliente.add_roles(
+                        cargo_rank_escolhido,
+                        reason=f"Rank automático por {total_robux} Robux comprados"
+                    )
 
             embed = discord.Embed(
                 title="✅ Venda Registrada",
