@@ -588,5 +588,5 @@ async def atualizar_ticket_venda(
         valor,
         canal_id
     ))
-
+    
     await db.commit()
